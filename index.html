@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHT4x Smart Gadget Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background 2s ease;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.15);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .app-button {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .app-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.4);
+        }
+        .app-button:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .model-selector {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            transition: all 0.2s;
+        }
+        .model-selector:hover:not(:disabled) {
+            background: rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .model-selector:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .model-selector option {
+            background: #1f2937;
+            color: white;
+            padding: 8px;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 150px;
+        }
+        @media (min-width: 640px) {
+            .chart-container {
+                height: 200px;
+            }
+        }
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animated-gradient {
+            background-size: 200% 200%;
+            animation: gradientAnimation 15s ease infinite;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 flex-col text-white transition-colors duration-500">
+
+    <div class="container mx-auto p-4 sm:p-6 space-y-6 flex flex-col items-center w-full max-w-2xl">
+        <header class="text-center">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white mb-2 text-shadow">SHT4x Gadget Dashboard</h1>
+            <p id="status" class="text-center text-sm font-medium text-gray-300">Awaiting connection...</p>
+        </header>
+
+        <div id="connectionSection" class="flex flex-col items-center space-y-4">
+            <button id="connectButton" class="app-button font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                Connect to SHT4x
+            </button>
+        </div>
+
+        <div id="dataContainer" class="hidden w-full space-y-6">
+            <div class="glass-card rounded-2xl p-6 w-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold">Live Readings</h2>
+                        <p class="text-xs text-gray-300">Real-time sensor data</p>
+                    </div>
+                    <div class="text-right">
+                        <div id="min-max-display" class="text-xs">
+                            <div class="flex items-center justify-end gap-2"><span>MIN</span> <span id="min-temp-value" class="font-semibold">--.-°C</span></div>
+                            <div class="flex items-center justify-end gap-2"><span>MAX</span> <span id="max-temp-value" class="font-semibold">--.-°C</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4 text-center">
+                    <div>
+                        <span id="temp-value" class="text-5xl font-light">--.-</span><span class="text-2xl opacity-70">°C</span>
+                        <p class="text-sm text-gray-200">Temperature</p>
+                    </div>
+                    <div>
+                        <span id="humidity-value" class="text-5xl font-light">--.-</span><span class="text-2xl opacity-70">%</span>
+                        <p class="text-sm text-gray-200">Humidity</p>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="dataChart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 w-full space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                     <div>
+                        <h2 class="text-lg font-bold">AI Environmental Analysis</h2>
+                        <p class="text-xs text-gray-300">Powered by local LLM</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-center">
+                        <select id="modelSelect" class="model-selector px-3 py-2 rounded-lg text-xs sm:text-sm w-full sm:w-auto">
+                            <option value="">Loading models...</option>
+                        </select>
+                        <button id="interpretButton" class="app-button font-semibold py-2 px-5 rounded-lg shadow-md whitespace-nowrap">
+                            Analyze Data
+                        </button>
+                    </div>
+                </div>
+                <div id="interpretation" class="p-4 bg-black bg-opacity-20 rounded-lg text-gray-200 leading-relaxed min-h-[100px] text-sm">
+                    <p>Click the button above to get an AI-generated analysis of the sensor data.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="messageBox" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50 p-4">
+        <div class="glass-card p-6 rounded-lg shadow-lg max-w-sm w-full text-center">
+            <p id="messageText" class="font-medium mb-4"></p>
+            <button id="closeMessage" class="bg-blue-500 text-white py-2 px-5 rounded-full hover:bg-blue-600 transition">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const closeMessage = document.getElementById('closeMessage');
+        const showMessage = (message) => {
+            messageText.textContent = message;
+            messageBox.classList.remove('hidden');
+        };
+        closeMessage.addEventListener('click', () => messageBox.classList.add('hidden'));
+
+        const connectButton = document.getElementById('connectButton');
+        const statusElement = document.getElementById('status');
+        const dataContainer = document.getElementById('dataContainer');
+        const connectionSection = document.getElementById('connectionSection');
+        const interpretButton = document.getElementById('interpretButton');
+        const interpretation = document.getElementById('interpretation');
+
+        const tempValueElement = document.getElementById('temp-value');
+        const humidityValueElement = document.getElementById('humidity-value');
+        const minTempValueElement = document.getElementById('min-temp-value');
+        const maxTempValueElement = document.getElementById('max-temp-value');
+
+        const history = { temp: [], humidity: [] };
+        const maxHistoryPoints = 60;
+
+        const HUMIDITY_SERVICE_UUID = '00001234-b38d-4985-720e-0f993a68ee41';
+        const HUMIDITY_CHARACTERISTIC_UUID = '00001235-b38d-4985-720e-0f993a68ee41';
+        const TEMPERATURE_SERVICE_UUID = '00002234-b38d-4985-720e-0f993a68ee41';
+        const TEMPERATURE_CHARACTERISTIC_UUID = '00002235-b38d-4985-720e-0f993a68ee41';
+
+        const lastValue = (arr) => arr.slice(-1)[0].value;
+
+        let dataChart;
+        const historyData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Temperature (°C)',
+                    data: [],
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    backgroundColor: (ctx) => {
+                        const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+                        gradient.addColorStop(0, 'rgba(209, 250, 30, 0.5)');
+                        gradient.addColorStop(1, 'rgba(209, 250, 30, 0.0)');
+                        return gradient;
+                    },
+                    tension: 0.4, yAxisID: 'y', fill: 'start', pointRadius: 0, borderWidth: 1.5
+                },
+                {
+                    label: 'Humidity (%)',
+                    data: [],
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    backgroundColor: (ctx) => {
+                        const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+                        gradient.addColorStop(0, 'rgba(46, 134, 222, 0.5)');
+                        gradient.addColorStop(1, 'rgba(46, 134, 222, 0.0)');
+                        return gradient;
+                    },
+                    tension: 0.4, yAxisID: 'y1', fill: 'start', pointRadius: 0, borderWidth: 1.5
+                }
+            ]
+        };
+
+        const initChart = () => {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            dataChart = new Chart(ctx, {
+                type: 'line',
+                data: historyData,
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { display: false },
+                        y: { display: false, min: 10, max: 40 },
+                        y1: { display: false, min: 20, max: 90 }
+                    },
+                    plugins: {
+                        tooltip: { mode: 'index', intersect: false },
+                        legend: { display: false }
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false }
+                }
+            });
+        };
+
+        const getGradientColor = (c1, c2, p) => {
+            const hexToRgb = (hex) => hex.match(/\w\w/g).map((c) => parseInt(c, 16));
+            const [r1, g1, b1] = hexToRgb(c1);
+            const [r2, g2, b2] = hexToRgb(c2);
+            const r = Math.round(r1 + (r2 - r1) * p);
+            const g = Math.round(g1 + (g2 - g1) * p);
+            const b = Math.round(b1 + (b2 - b1) * p);
+            return `rgb(${r},${g},${b})`;
+        }
+
+        const updateBackground = (temp, humidity) => {
+            const tempColors = ['#023e8a', '#2a9d8f', '#e76f51']; 
+            const humidityColors = ['#f4a261', '#457b9d', '#8d99ae']; 
+
+            const tempP = Math.max(0, Math.min(1, (temp - 15) / 15)); 
+            const humidityP = Math.max(0, Math.min(1, (humidity - 30) / 40)); 
+
+            const tempColor = tempP < 0.5 ? getGradientColor(tempColors[0], tempColors[1], tempP * 2) : getGradientColor(tempColors[1], tempColors[2], (tempP - 0.5) * 2);
+            const humidityColor = humidityP < 0.5 ? getGradientColor(humidityColors[0], humidityColors[1], humidityP * 2) : getGradientColor(humidityColors[1], humidityColors[2], (humidityP - 0.5) * 2);
+            
+            document.body.style.background = `linear-gradient(45deg, ${tempColor}, ${humidityColor})`;
+            document.body.classList.add('animated-gradient');
+        };
+
+        updateBackground(22, 50);
+
+        const modelSelect = document.getElementById('modelSelect');
+        let ollamaAvailable = false;
+        
+        const loadAvailableModels = async () => {
+            try {
+                const response = await fetch('http://localhost:11434/api/tags', {
+                    signal: AbortSignal.timeout(3000) // 3 second timeout
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch models');
+                
+                const data = await response.json();
+                modelSelect.innerHTML = '';
+                
+                if (data.models && data.models.length > 0) {
+                    ollamaAvailable = true;
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = model.name;
+                        modelSelect.appendChild(option);
+                    });
+                    
+                    // Set default if available
+                    const defaultModel = 'gemma3n:e2b';
+                    if (data.models.find(m => m.name === defaultModel)) {
+                        modelSelect.value = defaultModel;
+                    }
+                    
+                    modelSelect.disabled = false;
+                    interpretButton.disabled = false;
+                    interpretation.innerHTML = '<p>Click the button above to get an AI-generated analysis of the sensor data.</p>';
+                } else {
+                    throw new Error('No models found');
+                }
+            } catch (error) {
+                console.warn('Ollama not available:', error.message);
+                ollamaAvailable = false;
+                modelSelect.innerHTML = '<option value="">Ollama unavailable</option>';
+                modelSelect.disabled = true;
+                interpretButton.disabled = true;
+                interpretation.innerHTML = '<p class="text-yellow-400">⚠️ AI analysis is unavailable. Please ensure Ollama is running and has models installed.</p>';
+            }
+        };
+
+        // Load models when page loads
+        loadAvailableModels();
+
+        const connectToDevice = async () => {
+            try {
+                statusElement.textContent = 'Searching for devices...';
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'SHT' }],
+                    optionalServices: [HUMIDITY_SERVICE_UUID, TEMPERATURE_SERVICE_UUID]
+                });
+
+                statusElement.textContent = 'Connecting to ' + device.name + '...';
+                const server = await device.gatt.connect();
+                statusElement.textContent = 'Getting services...';
+
+                const humidityService = await server.getPrimaryService(HUMIDITY_SERVICE_UUID);
+                const humidityCharacteristic = await humidityService.getCharacteristic(HUMIDITY_CHARACTERISTIC_UUID);
+                await humidityCharacteristic.startNotifications();
+                humidityCharacteristic.addEventListener('characteristicvaluechanged', handleDataChange);
+
+                const temperatureService = await server.getPrimaryService(TEMPERATURE_SERVICE_UUID);
+                const temperatureCharacteristic = await temperatureService.getCharacteristic(TEMPERATURE_CHARACTERISTIC_UUID);
+                await temperatureCharacteristic.startNotifications();
+                temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleDataChange);
+
+                statusElement.textContent = `Connected to ${device.name}`;
+                connectionSection.classList.add('hidden');
+                dataContainer.classList.remove('hidden');
+                initChart();
+
+            } catch (error) {
+                console.error('Connection failed:', error);
+                statusElement.textContent = 'Connection failed. Please try again.';
+                showMessage(`Error: ${error.message}`);
+            }
+        };
+
+        const handleDataChange = (event) => {
+            const value = event.target.value.getFloat32(0, true);
+            const uuid = event.target.uuid;
+            if (uuid === TEMPERATURE_CHARACTERISTIC_UUID) {
+                updateDashboard(value, 'temp');
+            } else if (uuid === HUMIDITY_CHARACTERISTIC_UUID) {
+                updateDashboard(value, 'humidity');
+            }
+        };
+
+        const updateDashboard = (value, type) => {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const dataArray = history[type];
+            dataArray.push({ value, date: now });
+            if (dataArray.length > maxHistoryPoints) dataArray.shift();
+
+            if (type === 'temp') {
+                tempValueElement.textContent = value.toFixed(1);
+            } else {
+                humidityValueElement.textContent = value.toFixed(1);
+            }
+
+            if (history.temp.length > 0 && history.humidity.length > 0) {
+                updateBackground(lastValue(history.temp), lastValue(history.humidity));
+            }
+
+            updateMinMaxValues();
+            updateChart(timeLabel);
+        };
+
+        const updateChart = (timeLabel) => {
+            if (history.temp.length === 0 || history.humidity.length === 0) return;
+            historyData.labels.push(timeLabel);
+            historyData.datasets[0].data.push(history.temp.length > 0 ? lastValue(history.temp) : null);
+            historyData.datasets[1].data.push(history.humidity.length > 0 ? lastValue(history.humidity) : null);
+
+            if (historyData.labels.length > maxHistoryPoints) {
+                historyData.labels.shift();
+                historyData.datasets[0].data.shift();
+                historyData.datasets[1].data.shift();
+            }
+            if (dataChart) dataChart.update('none');
+        };
+
+        const updateMinMaxValues = () => {
+            if (history.temp.length > 0) {
+                const minTemp = history.temp.reduce((prev, curr) => prev.value < curr.value ? prev : curr).value;
+                const maxTemp = history.temp.reduce((prev, curr) => prev.value > curr.value ? prev : curr).value;
+                minTempValueElement.textContent = `${minTemp.toFixed(1)}°C`;
+                maxTempValueElement.textContent = `${maxTemp.toFixed(1)}°C`;
+            }
+        };
+        
+        const interpretData = async () => {
+            if (!ollamaAvailable) {
+                showMessage("AI analysis is unavailable. Ollama is not running or no models are installed.");
+                return;
+            }
+
+            const temp = tempValueElement.textContent;
+            const humidity = humidityValueElement.textContent;
+
+            if (temp === '--.-' || humidity === '--.-') {
+                showMessage("No data available to interpret.");
+                return;
+            }
+
+            interpretation.innerHTML = '<p>Thinking <span class="animate-pulse">...</span></p>';
+            interpretButton.disabled = true;
+
+            const historicalData = history.temp.map((t, i) => ({
+                time: t.date.toLocaleTimeString(),
+                temperature: t.value.toFixed(1),
+                humidity: history.humidity[i]?.value.toFixed(1) || 'N/A'
+            })).slice(-20);
+            
+            // Calculate trends
+            const tempTrend = history.temp.length > 5 ? 
+                ((lastValue(history.temp) - history.temp[history.temp.length - 6].value) / 5).toFixed(2) : 0;
+            const humidityTrend = history.humidity.length > 5 ? 
+                ((lastValue(history.humidity) - history.humidity[history.humidity.length - 6].value) / 5).toFixed(2) : 0;
+            
+            const now = new Date();
+            const timeOfDay = now.getHours() < 12 ? 'morning' : now.getHours() < 18 ? 'afternoon' : 'evening';
+            const season = ['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'fall', 'fall', 'fall', 'winter'][now.getMonth()];
+            
+            const prompt = `You are an expert environmental monitoring specialist analyzing indoor climate data.
+
+CURRENT CONDITIONS:
+- Temperature: ${temp}°C
+- Humidity: ${humidity}%
+- Time: ${now.toLocaleString()} (${timeOfDay}, ${season})
+- Temperature trend: ${tempTrend > 0 ? '+' : ''}${tempTrend}°C per reading (${tempTrend > 0 ? 'rising' : tempTrend < 0 ? 'falling' : 'stable'})
+- Humidity trend: ${humidityTrend > 0 ? '+' : ''}${humidityTrend}% per reading (${humidityTrend > 0 ? 'rising' : humidityTrend < 0 ? 'falling' : 'stable'})
+
+RECENT HISTORY (last ${historicalData.length} readings):
+${JSON.stringify(historicalData, null, 2)}
+
+REFERENCE STANDARDS:
+- Ideal indoor temp: 18-24°C (varies by season and time of day)
+- Ideal indoor humidity: 30-50% (40-50% is optimal for health)
+- Mold risk: >60% humidity sustained
+- Dry air risk: <30% humidity sustained
+- Comfort zone: 20-22°C at 40-50% humidity
+
+ANALYSIS REQUIREMENTS:
+1. Compare current values against ideal ranges
+2. Identify any health, comfort, or structural risks (mold, dry air, overheating)
+3. Consider time of day and seasonal context
+4. Analyze trends - is the situation improving or worsening?
+5. Provide specific, actionable recommendations with reasoning
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "s": "One clear sentence summarizing the current environmental status and primary concern (if any)",
+  "r": [
+    "Specific action 1 with reasoning",
+    "Specific action 2 with reasoning",
+    "Specific action 3 with reasoning (if needed)"
+  ]
+}`;
+
+            try {
+                const response = await fetch('http://localhost:11434/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: modelSelect.value, 
+                        prompt, 
+                        stream: false, 
+                        format: 'json',
+                        options: {
+                            temperature: 0.3,
+                            top_p: 0.9
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                const llmResponse = JSON.parse(data.response);
+
+                const { s: summary = 'No summary available.', r: recommendations = [] } = llmResponse;
+                
+                let content = `
+                    <h3 class="font-bold mb-2">📊 Analysis Summary</h3>
+                    <p class="mb-4">${summary}</p>
+                    <h3 class="font-bold mb-2">💡 Recommendations</h3>
+                    <ul class="list-disc list-inside space-y-1">
+                        ${recommendations.map(rec => `<li>${rec}</li>`).join('') || '<li>No recommendations at this time.</li>'}
+                    </ul>`;
+                interpretation.innerHTML = content;
+
+            } catch (error) {
+                console.error('LLM request failed:', error);
+                interpretation.innerHTML = `<p class="text-red-400">Could not connect to the local LLM. Please ensure Ollama is running and accessible at http://localhost:11434.</p>`;
+                showMessage("LLM connection failed. Check console for details.");
+            } finally {
+                interpretButton.disabled = ollamaAvailable ? false : true;
+            }
+        };
+
+        connectButton.addEventListener('click', connectToDevice);
+        interpretButton.addEventListener('click', interpretData);
+    </script>
+</body>
+</html>
+
